@@ -1,0 +1,77 @@
+#!/bin/bash
+vboxurl=http://download.virtualbox.org/virtualbox
+# Take the version number in LATEST.TXT and make it a variable
+vboxver=$(curl -s $vboxurl/LATEST.TXT)
+# Parse the HTML of the version directory for the DMG file name
+osxdmg=$(curl -s http://download.virtualbox.org/virtualbox/$vboxver |grep .dmg | sed -n "/href=/s/.*href=\([^>]*\).*/\1/p" | sed 's/^"\(.*\)"$/\1/')
+vboxext=Oracle_VM_VirtualBox_Extension_Pack-${vboxver}.vbox-extpack 
+
+# Set VirtualBox local version if it is installed
+if [ -e /usr/local/bin/virtualbox ]
+	then
+	vboxlocalver=$(virtualbox --help | awk '/Oracle/{ print $5 }')
+else
+	vboxlocalver=0
+fi
+
+echo The latest version of VirtualBox is $vboxver
+echo The latest OSX DMG is $osxdmg
+echo The URL is $vboxurl/$vboxver/$osxdmg
+echo The URL of the Extension is $vboxurl/$vboxver/$vboxext
+echo The local version of Virtualbox is $vboxlocalver
+
+if [ $vboxver = $vboxlocalver ]
+	then
+	echo VirtualBox is already at the latest version.
+	exit
+fi
+
+# Download the DMG to /tmp
+if [ -e /tmp/$osxdmg ]
+        then
+	echo Removing old download of $osxdmg
+        rm /tmp/$osxdmg
+fi
+
+if [ -e /tmp/$vboxext ]
+	then
+	echo Removing old download of $vboxext
+	rm /tmp/$vboxext
+fi
+
+if [ -e /Volumes/VirtualBox/VirtualBox.pkg ]
+	then
+	echo Removing Existing VirtualBox DMG mount
+	hdiutil detach /Volumes/VirtualBox &>/dev/null
+fi
+
+curl -o /tmp/$osxdmg $vboxurl/$vboxver/$osxdmg
+curl -o /tmp/$vboxext $vboxurl/$vboxver/$vboxext
+
+
+echo Mounting $osxdmg
+hdiutil attach /tmp/$osxdmg &>/dev/null
+
+echo Installing VirtualBox...
+sudo installer -allowUntrusted -pkg /Volumes/VirtualBox/VirtualBox.pkg -target /
+echo Installing VirtualBox extention...
+sudo VBoxManage extpack install /tmp/$vboxext --replace
+
+echo Unmounting $osxdmg
+hdiutil detach /Volumes/VirtualBox &>/dev/null
+
+#cleanup
+if [ -e /tmp/$osxdmg ]
+        then
+        echo Removing old download of $osxdmg
+        rm /tmp/$osxdmg
+fi
+
+if [ -e /tmp/$vboxext ]
+        then
+        echo Removing old download of $vboxext
+        rm /tmp/$vboxext
+fi
+
+
+
